@@ -174,7 +174,16 @@ app.post('/api/bookings', async (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack)
-  res.status(500).json({ message: 'Something went wrong!' })
+  res.status(500).json({ 
+    message: process.env.NODE_ENV === 'production' 
+      ? 'Internal Server Error' 
+      : err.message 
+  })
+})
+
+// Handle 404 errors
+app.use((req, res) => {
+  res.status(404).json({ message: 'Route not found' })
 })
 
 app.listen(4000, ()=>console.log('▸ Server listening on :4000'))
