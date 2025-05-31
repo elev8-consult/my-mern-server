@@ -7,11 +7,18 @@ const cors      = require('cors')
 // Create Express app
 const app = express()
 
+// CORS Configuration
+const clientURL = process.env.CLIENT_URL || 'http://localhost:3000'
+if (!process.env.CLIENT_URL) {
+  console.warn('Warning: CLIENT_URL not found in environment variables. Using default URL:', clientURL)
+}
+
 // Configure CORS
 app.use(cors({
-  origin: 'http://localhost:3000', // React app URL
+  origin: clientURL,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type']
+  allowedHeaders: ['Content-Type'],
+  credentials: true
 }))
 
 // Body parser middleware
@@ -22,13 +29,26 @@ const Instructor = require('./models/Instructor')
 const Event      = require('./models/Event')
 const Booking    = require('./models/Booking')
 
+// MongoDB Configuration
+const mongoURI = process.env.MONGO_URI || 'mongodb://localhost:27017/booking-system'
+
+// Validate MongoDB URI
+if (!process.env.MONGO_URI) {
+  console.warn('Warning: MONGO_URI not found in environment variables. Using default local URI.')
+}
+
 // Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI, {
+mongoose.connect(mongoURI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 })
-  .then(()=>console.log('Mongo connected'))
-  .catch(e=>console.error(e))
+.then(() => {
+  console.log('MongoDB connected successfully')
+})
+.catch(err => {
+  console.error('MongoDB connection error:', err)
+  process.exit(1)
+})
 
 // Middleware
 app.use(cors())
