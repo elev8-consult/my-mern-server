@@ -16,9 +16,11 @@ if (!process.env.CLIENT_URL) {
 // Configure CORS
 app.use(cors({
   origin: clientURL,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type'],
-  credentials: true
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  credentials: true,
+  maxAge: 86400 // 24 hours
 }))
 
 // Body parser middleware
@@ -50,13 +52,9 @@ mongoose.connect(mongoURI, {
   process.exit(1)
 })
 
-// Middleware
-app.use(cors())
-app.use(express.json())
-
-// log every incoming request
+// Request logging middleware
 app.use((req, res, next) => {
-  console.log(`${req.method} ${req.url}`)
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`)
   next()
 })
 
@@ -74,13 +72,31 @@ const validateEventData = (req, res, next) => {
   next();
 };
 
-// instructors
-app.get('/api/instructors', async (req, res) =>
-  res.json(await Instructor.find())
-)
-app.post('/api/instructors', async (req, res) =>
-  res.json(await Instructor.create(req.body))
-)
+// Instructor routes
+app.get('/api/instructors', async (req, res) => {
+  try {
+    const instructors = await Instructor.find().sort({ name: 1 });
+    res.json(instructors);
+  } catch (error) {
+    console.error('Error fetching instructors:', error);
+    res.status(500).json({ message: 'Error fetching instructors' });
+  }
+});
+
+app.post('/api/instructors', async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ message: 'Name is required' });
+    }
+
+    const instructor = await Instructor.create({ name: name.trim() });
+    res.status(201).json(instructor);
+  } catch (error) {
+    console.error('Error creating instructor:', error);
+    res.status(500).json({ message: 'Error creating instructor' });
+  }
+});
 
 // Get specific instructor by ID
 app.get('/api/instructors/:id', async (req, res) => {
@@ -228,5 +244,13 @@ app.use((err, req, res, next) => {
 app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' })
 })
+
+// Method not allowed handler
+app.use((req, res, next) => {
+  res.status(405).json({
+    message: `Method ${req.method} is not allowed for ${req.url}`,
+    allowedMethods: ['GET', 'POST', 'PUT', 'DELETE']
+  });
+});
 
 app.listen(4000, ()=>console.log('▸ Server listening on :4000'))
