@@ -82,10 +82,53 @@ app.post('/api/instructors', async (req, res) =>
   res.json(await Instructor.create(req.body))
 )
 
+// Get specific instructor by ID
+app.get('/api/instructors/:id', async (req, res) => {
+  try {
+    const instructor = await Instructor.findById(req.params.id)
+    if (!instructor) {
+      return res.status(404).json({ message: 'Instructor not found' })
+    }
+    res.json(instructor)
+  } catch (err) {
+    res.status(500).json({ message: err.message })
+  }
+})
+
 // events
-app.get('/api/events', async (req, res) =>
-  res.json(await Event.find().populate('instructor'))
-)
+app.get('/api/events', async (req, res) => {
+  try {
+    const query = req.query.instructor ? { instructor: req.query.instructor } : {}
+    const events = await Event.find(query)
+      .populate('instructor')
+      .lean()
+
+    // Get bookings for these events
+    const eventIds = events.map(e => e._id)
+    const bookings = await Booking.find({ event: { $in: eventIds } })
+      .select('event name countryCode phone')
+      .lean()
+
+    // Group bookings by event
+    const bookingsByEvent = bookings.reduce((acc, booking) => {
+      acc[booking.event.toString()] = acc[booking.event.toString()] || []
+      acc[booking.event.toString()].push(booking)
+      return acc
+    }, {})
+
+    // Add bookings to each event
+    const eventsWithBookings = events.map(event => ({
+      ...event,
+      attendees: bookingsByEvent[event._id.toString()] || [],
+      booked: (bookingsByEvent[event._id.toString()] || []).length
+    }))
+
+    res.json(eventsWithBookings)
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching events', error: error.message })
+  }
+})
+
 app.get('/api/events/:id', async (req, res) => {
   try {
     const event = await Event.findById(req.params.id).populate('instructor')
