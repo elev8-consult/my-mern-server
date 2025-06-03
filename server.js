@@ -8,19 +8,35 @@ const cors      = require('cors')
 const app = express()
 
 // CORS Configuration
-const clientURL = process.env.CLIENT_URL || 'http://localhost:3000'
-if (!process.env.CLIENT_URL) {
-  console.warn('Warning: CLIENT_URL not found in environment variables. Using default URL:', clientURL)
-}
+const allowedOrigins = [
+  'https://my-mern-client-git-main-rami-abou-khalils-projects.vercel.app',
+  'https://my-mern-client-rami-abou-khalils-projects.vercel.app',
+  'https://my-mern-client-five.vercel.app',
+  'https://book.aurastudio-lb.com',
+  'http://localhost:3000'
+];
 
-// Configure CORS
+// Configure CORS with more detailed error handling
 app.use(cors({
-  origin: clientURL,
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or Postman)
+    if (!origin) {
+      console.log('Request from internal source (no origin)')
+      return callback(null, true)
+    }
+
+    if (allowedOrigins.includes(origin)) {
+      console.log('Allowed origin:', origin)
+      callback(null, true)
+    } else {
+      console.warn('Blocked request from unauthorized origin:', origin)
+      callback(new Error('Origin not allowed by CORS'))
+    }
+  },
+  credentials: false, // Changed to false since we're using multiple origins
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  exposedHeaders: ['Content-Range', 'X-Content-Range'],
-  credentials: true,
-  maxAge: 86400 // 24 hours
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 204
 }))
 
 // Body parser middleware
