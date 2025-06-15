@@ -127,6 +127,19 @@ app.get('/api/instructors/:id', async (req, res) => {
   }
 })
 
+// Delete instructor by ID
+app.delete('/api/instructors/:id', async (req, res) => {
+  try {
+    const instructor = await Instructor.findByIdAndDelete(req.params.id);
+    if (!instructor) {
+      return res.status(404).json({ message: 'Instructor not found' });
+    }
+    res.json({ message: 'Instructor deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting instructor' });
+  }
+});
+
 // events
 app.get('/api/events', async (req, res) => {
   try {
@@ -214,6 +227,35 @@ app.post('/api/events', validateEventData, async (req, res) => {
     res.status(500).json({ message: 'Error creating event', error: error.message });
   }
 })
+
+// Delete event (class) by ID
+app.delete('/api/events/:id', async (req, res) => {
+  try {
+    const event = await Event.findByIdAndDelete(req.params.id);
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+    // Optionally, delete related bookings
+    await Booking.deleteMany({ event: req.params.id });
+    res.json({ message: 'Event deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting event' });
+  }
+});
+
+// Scheduled job to delete past events
+const cron = require('node-cron');
+cron.schedule('0 * * * *', async () => { // Runs every hour
+  try {
+    const now = new Date();
+    const result = await Event.deleteMany({ date: { $lt: now } });
+    if (result.deletedCount > 0) {
+      console.log(`Deleted ${result.deletedCount} past events.`);
+    }
+  } catch (error) {
+    console.error('Error deleting past events:', error);
+  }
+});
 
 // bookings
 app.post('/api/bookings', async (req, res) => {
