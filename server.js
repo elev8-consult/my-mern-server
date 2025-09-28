@@ -221,8 +221,69 @@ app.delete('/api/bookings/:id', async (req, res) => {
 
 app.post('/api/events', validateEventData, async (req, res) => {
   try {
-    const event = await Event.create(req.body);
-    res.json(await event.populate('instructor'));
+    const {
+      title,
+      date,
+      time,
+      duration,
+      instructor,
+      maxSeats,
+      repeatForMonth = false
+    } = req.body;
+
+    const durationMinutes = Number(duration);
+    const maxSeatCount = Number(maxSeats);
+    const shouldRepeatForMonth = repeatForMonth === true || repeatForMonth === 'true';
+
+    const baseDate = new Date(date);
+    if (isNaN(baseDate.getTime())) {
+      return res.status(400).json({ message: 'Valid date is required' });
+    }
+
+    const baseEvent = {
+      title: title.trim(),
+      date: null, // set per iteration
+      time,
+      duration: durationMinutes,
+      instructor,
+      maxSeats: maxSeatCount,
+      booked: 0
+    };
+
+    const eventsToCreate = [];
+    const targetMonth = baseDate.getMonth();
+    const targetYear = baseDate.getFullYear();
+
+    let currentDate = new Date(baseDate);
+    while (true) {
+      eventsToCreate.push({ ...baseEvent, date: new Date(currentDate) });
+
+      if (!shouldRepeatForMonth) break;
+
+      const nextDate = new Date(currentDate);
+      nextDate.setDate(nextDate.getDate() + 7);
+
+      if (nextDate.getMonth() !== targetMonth || nextDate.getFullYear() !== targetYear) {
+        break;
+      }
+
+      currentDate = nextDate;
+    }
+
+    const createdEvents = await Event.insertMany(eventsToCreate);
+    const createdIds = createdEvents.map(event => event._id);
+
+    const populatedEvents = await Event.find({ _id: { $in: createdIds } })
+      .populate('instructor')
+      .sort({ date: 1 })
+      .lean();
+
+    // Return single event for backward compatibility when no recurrence is used
+    if (populatedEvents.length === 1) {
+      return res.status(201).json(populatedEvents[0]);
+    }
+
+    res.status(201).json({ events: populatedEvents, createdCount: populatedEvents.length });
   } catch (error) {
     res.status(500).json({ message: 'Error creating event', error: error.message });
   }
